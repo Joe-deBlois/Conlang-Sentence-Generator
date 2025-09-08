@@ -9,8 +9,10 @@ import tkinter as tk
 # List of IPA characters (add more as needed)
 ipa_cons = [["p", "b", "t", "d", "ʈ", "ɖ", "c", "ɟ", "k", "ɡ", "q", "ɢ", "ʔ"], ["m", "ɱ", "n", "ɳ", "ɲ", "ŋ", "ɴ"], ["ʙ", "r", "ʀ"], ["ⱱ", "ɾ", "ɽ"], ["ɸ", "β", "f", "v", "θ", "ð", "s", "z", "ʃ","ʒ", "ʂ", "ʐ", "ç", "ʝ", "x", "ɣ", "χ", "ʁ", "ħ", "ʕ", "h","ɦ"], ["ɬ", "ɮ"], ["ʋ", "ɹ", "ɻ", "j", "ɰ"], ["l", "ɭ", "ʎ", "ʟ"]]
 ipa_vowels = [["i", "y", "ɨ", "ʉ", "ɯ", "u"], ["ɪ", "ʏ", "ʊ"], ["e", "ø","ɘ", "ɵ", "ɤ", "o"], ["ə"], ["ɛ", "œ", "ɜ", "ɞ", "ʌ", "ɔ"], ["æ", "ɐ"], ["a", "ɶ", "ɑ", "ɒ"]]
-ipa_clicks = []
-ipa_other = []
+ipa_clicks = ["ʘ", "ǀ", "ǃ", "ǂ", "ǁ"]
+ipa_affricates = ["d͡ʒ", "t͡ʃ", "t͡s","d͡z", "p͡f", "k͡x"]
+ipa_other = ["pʼ", "tʼ", "kʼ", "sʼ", "ɧ", "ɕ", "ʑ", "ʍ", "w", "ɥ", "ʜ", "ʢ", "ʡ"]
+
 #endregion
 
 #region === State Management () ===
@@ -39,12 +41,13 @@ def selection_click(char):
             f.write(f"{c}: {probabilities[c]:.2f}%\n")
 #endregion
 
-#region === Main Window ===
+#region === IPA Selection and Frequency Bars ===
 # Create main window and title for window
 window = tk.Tk()
 window.title("Interactive IPA Chart")
 
 # Display label
+display_label = tk.Label(window, text= "Select the sounds in your conlang.")
 display_label = tk.Label(window, text="Selected: ")
 display_label.pack(pady=10)
 
@@ -66,6 +69,10 @@ def show_buttons(char_list, start_row):
         title = "Vowels"
     if char_list == ipa_clicks:
         title = "Clicks"
+    if char_list == ipa_affricates:
+        title = "Affricates"
+    if char_list == ipa_other:
+        title = "Other Phonemes"
 
         
     # Add section title label
@@ -149,13 +156,22 @@ def on_bar_change(char, new_val):
     updating_bars = False
 #endregion
 
-#Handle user clicks on the IPA buttons
 
 
 
+#region === Valid Syllables ===
+# number of syllables per word
+ #have user select from structures = ["V", "CV", "VC", "CVC", "CCV", "CCVC", "CCCV", "CCCVC", "CVCC", "CCVCC", "CCCVCC", "CVCCC", "CCCVCCC", "VCC", "CCCCVCCCC"] and their frequencies
 
-#generate syllables
+ #endregion
 
+
+#region === User Specifications and Output ===
+
+#User specifies number of words, max/min length of any word
+#Program outputs plaintext file of randomly generated words seperated by \n
+
+#endregion
 
 
 
