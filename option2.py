@@ -1,16 +1,33 @@
 from itertools import chain
-from collections import Counter
-import morfessor
+from collections import Counter, defaultdict
+import tempfile
 
 #-----------------------------------------------------------
-#Code for option 2; generated sentences from input strings (AI)
+#Code for option 2; generated sentences from input strings 
 #-----------------------------------------------------------
 
-print("Text input rules: \n -Text must be inputted as one string\n -Text must be in the IPA, with periods as syllable markers and spaces as word boundaries\n -Affricates and diphthongs must have a tie-bar above them\n -This version does not support diacritics or tones\n -The model will learn best with >100 words as input")
+print("Text input rules: \n "
+"-Text must be inputted as one string\n "
+"-Text must be in the IPA, with periods as syllable markers and spaces as word boundaries\n "
+"-Affricates and diphthongs must have a tie-bar above them\n "
+"-This version does not support diacritics or tones\n "
+"-The model will learn best with >100 words as input\n "
+"-At this stage, the program will only use phonemes found in your string (it will not extrapolate and use likely novel phonemes)")
+
 input_string = input("Please input your text here: \n")
 print(input_string)
 
+input_max_word_length = input("Please input the maximum number of syllables a word can have: \n")
 
+input_number_words = input("Please input how many words you want: \n")
+
+
+
+#  PART 1: PHONOTACTIC SYLLABIFIER--------------------------------------------------------------------------------------
+
+#region ==PREPARE INPUT STRING ==
+
+#for flattening lists later
 def flatten_list(nested_list):
     flat_list = []
     for item in nested_list:
@@ -20,7 +37,46 @@ def flatten_list(nested_list):
             flat_list.append(item)
     return flat_list
 
-#  PART 1: PHONOTACTIC SYLLABIFIER 
+#map complex symbols so they can be read as characters
+affricate_and_diphthong_mapping = {
+    "d͡ʒ": "0",
+    "t͡ʃ": "1", 
+    "t͡s": "2",
+    "d͡z": "3", 
+    "p͡f" : "4", 
+    "k͡x": "5", 
+    "a͡ɪ":"6", 
+    "e͡ɪ":"7", 
+    "a͡ʊ": "8", 
+    "o͡ʊ" :"9", 
+    "ɔ͡ɪ": "@",
+    "e͡ə": "#", 
+    "ʊ͡ə": "$", 
+    "u͡ɪ" : "%", 
+    "i͡ʊ" : "^", 
+    "ə͡ɪ" : "&", 
+    "ɪ͡ə" : "*", 
+    "œ͡ɪ" : "(", 
+    "ʏ͡ə" : ")", 
+    "œ͡ʊ" : "-", 
+    "i͡ə": "+", 
+    "u͡ə" : "=", 
+    "y͡ə" : "`", 
+    "e͡i": "[", 
+    "ø͡i" :"]", 
+    "ɛ͡ɪ": "<", 
+    "a͡ɛ": ">", 
+    "ɔ͡ə": "?"
+}
+
+def map_affricates_and_diphthongs(text):
+    for aff_or_diph, replacement in affricate_and_diphthong_mapping.items():
+        text = text.replace(aff_or_diph, replacement)
+    return text
+
+#map input data
+input_string = map_affricates_and_diphthongs(input_string)
+#endregion
 
 #region ==DATA COLLECTION ITEMS==
 
@@ -33,7 +89,6 @@ for word in words:
     syllables.append(word)
 syllables = flatten_list(syllables)
 syllable_structures = syllables.copy()
-morfessor_corpus = []
 
 unique_syllables = list(set(syllables))
 
@@ -122,7 +177,7 @@ for char in phonemes:
         pharyngeals.append(char)
     if char in ["ʔ"]:
         glottal.append(char)
-    if char in ["d͡ʒ", "t͡ʃ", "t͡s","d͡z", "p͡f", "k͡x"]:
+    if char in ["0", "1", "2","3", "4", "5"]:
         affricates.append(char)
     if char in ["ʘ", "ǀ", "ǃ", "ǂ", "ǁ"]:
         clicks.append(char)
@@ -148,7 +203,7 @@ for char in phonemes:
         rounded.append(char)
     if char in ["i", "e", "ɪ", "ɨ", "ɘ", "ʊ", "ɯ", "ɤ", "ə", "ɛ", "ɜ", "ʌ", "ɐ", "æ", "a", "ɑ"]:
         unrounded.append(char)
-    if char in ["a͡ɪ", "e͡ɪ", "a͡ʊ", "o͡ʊ", "ɔ͡ɪ", "e͡ə", "ʊ͡ə", "u͡ɪ", "i͡ʊ", "ə͡ɪ", "ɪ͡ə", "œ͡ɪ", "ʏ͡ə", "œ͡ʊ", "i͡ə", "u͡ə", "y͡ə", "e͡i", "ø͡i", "ɛ͡ɪ", "a͡ɛ", "ɔ͡ə"]:
+    if char in ["6", "7", "8", "9", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "=", "[", "]", "<", ">", "?", "`"]:
         diphthongs.append(char)
 
 #create seperate lists of all consonants, all vowels, and all phonemes
@@ -199,16 +254,105 @@ for structure in syllable_structures:
     
 #endregion
 
-#region ==MORFESSOR MORPHOLOGICAL SEGMENTATION==
+#PART 2: MORPHEME SEGMENTOR-------------------------------------------------------------------------------------
 
-morfessor_corpus = [(int(freq), word) for word, freq in word_counts.items()]
+#region == MORPHOLOGICAL SEGMENTATION ==
 
-#initialize and train model
-model = morfessor.BaselineModel()
-model.load_data(morfessor_corpus)
-model.train_batch()
+#look for repeated syllables
+#are they at the start, end, or middle?
+#repeated ones in the middle are probably nouns, start/end are probably affixes
+#given these, do the saved segments appear anywhere else in any other words?
+#for each word add the first syllable to "prefixes", last syllable to , etc..
 
-#Use the model on the data it was trained on, since this section is just gathering patterns
+morpheme_segmentation = []
 for word in words:
-    segments, _ = model.viterbi_segment(word)
-    print(" + ".join(segments))
+    morpheme_segmentation.append(word.split("."))
+
+prefix_candidates = defaultdict(int)
+suffix_candidates = defaultdict(int)
+root_candidates = defaultdict(int)
+prefix_or_suffix_candidates = dict()
+prefix_or_root_candidates = dict()
+root_or_suffix_candidates = dict()
+anywhere_candidates = dict()
+stand_alone = []
+
+
+for word in morpheme_segmentation:
+    if len(word) < 2: 
+        stand_alone.append(word)
+        continue
+    prefix = word[0]
+    suffix = word[-1]
+
+    prefix_candidates[prefix] += 1
+    suffix_candidates[suffix] += 1
+    #root(s): anything between prefix and suffix
+    if len(word) > 2:
+        roots = word[1:-1]
+    else:
+        roots = word[1:-1]  # Will be empty if only 2 morphemes
+
+    for root in roots:
+        root_candidates[root] += 1
+
+# Make a list to avoid RuntimeError due to dict size change during iteration
+for key in list(prefix_candidates):
+    
+    if key in suffix_candidates and root_candidates:
+        anywhere_candidates[key] = prefix_candidates[key] + suffix_candidates[key] + root_candidates[key]
+        del prefix_candidates[key]
+        del suffix_candidates[key]
+        del root_candidates[key]
+    
+    if key in suffix_candidates:
+        prefix_or_suffix_candidates[key] = prefix_candidates[key] + suffix_candidates[key]
+        del prefix_candidates[key]
+        del suffix_candidates[key]
+    
+    elif key in root_candidates:
+        prefix_or_root_candidates[key] = prefix_candidates[key] + root_candidates[key]
+        del prefix_candidates[key]
+        del root_candidates[key]
+
+# Now check root vs suffix
+for key in list(root_candidates):
+    
+    if key in suffix_candidates:
+        root_or_suffix_candidates[key] = root_candidates[key] + suffix_candidates[key]
+        del root_candidates[key]
+        del suffix_candidates[key]
+    
+
+#endregion
+
+#region ==MORPHEME RULES ===
+
+# r = root, p = prefix, s = suffix, rs = root/suffix, pr = prefix/root, ps = prefix/suffix, sa = stand alone, aw = anywhere
+
+morphological_typology = input("Is your language Isolating (1), Agglutinative (2), Fusional (3), or Polysynthetic(4)? \n")
+
+if morphological_typology == "1": #isolating
+    word_structures = ["sa", "aw", "r"]
+elif morphological_typology =="2":    #agglutinative
+    word_structures = ["p+r", "r+s", "p+r+s", "r+rs", "p+rs", "rs+s","p+aw", "aw+s", "p+aw+s"]
+elif morphological_typology =="3": #fusional
+    word_structures = ["sa", "r", "aw","p+r", "r+s", "p+r+s","p+rs", "r+rs", "rs+s","p+pr", "pr+s","r+ps", "ps", "pr", "rs"]
+elif morphological_typology == "4": #polysynthetic
+    word_structures = ["sa", "r", "aw","p+r", "r+s", "p+r+s","p+aw", "aw+s", "p+aw+s", "aw+aw","p+pr", "pr+s", "p+rs", "rs+s", "p+p+r", "r+r","p+r+r","p+r+s+s","p+p+r+s","p+r+s+s+s", "p+aw+r+aw+s","p+r+aw+aw+s","p+pr+r+s","p+r+rs+s","p+n+r+s", "p+n+v+s","p+aw+n+v+s+s","aw+p+r+s+aw"]
+        
+
+#endregion
+
+#PART 3: WORD GENERATOR--------------------------------------------------------------------------------------------
+#What do we have to consider?
+#User specs: max word length in input_max_word_length, words required in input_number_words
+#Phonology data: all consonants/vowels, their frequency, 
+#Syllable data: all valid syllable structures in unique_syllables
+#Morphology: morphological_typology, as well as what morphemes can fit into that structure. 
+#Extrapolations: valid syllables based on phoneme frequency and unique_syllables, valid morphemes based on valid syllables. Use a mix of pre-defined and generated sounds for new words? Weights for more probable sounds/syllables
+
+
+
+#Add stress patterns and phonotactics design later
+
