@@ -1,4 +1,4 @@
-This is a program for conlangers by randomly generating words or sentences given some user input. 
+This is a program for conlangers that randomly generates feasible words given some user input. 
 
 app-initialization.py should be run first; it prompts the user to select between options 1 or 2. 
 
